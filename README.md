@@ -10,7 +10,7 @@ This repo traines a BiLSTM with CTCLoss on squential mnist for OCR using pytorch
  * <a href="https://github.com/SeanNaren/warp-ctc" target="_blank"> warpctc_pytorch </a>
 
 ## Data
-<img src="sample_image.jpg" width="224" height="28">
+<img src="sample_image.png" width="224" height="28">
 
 ## Training
 
