@@ -172,7 +172,7 @@ class Seq_MNIST_Trainer():
         self.model.eval()
         self.model.export('r_model_fw_bw.hpp', simd_factor, pe)
 
-    def export_image(self, idx=634):
+    def export_image(self, idx=100):
         img, label = self.val_data.images[:,idx,:], self.val_data.labels[0][idx]
         img = img.transpose(1, 0)
         label -= 1
