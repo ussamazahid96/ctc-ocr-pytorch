@@ -25,11 +25,11 @@ class Seq_MNIST_Trainer():
         if args.cuda:
                 torch.cuda.manual_seed_all(trainer_params.random_seed)
 
-        kwargs = {'num_workers': 1, 'pin_memory': True} if args.cuda else {}    
+        kwargs = {'num_workers': 4, 'pin_memory': False} if args.cuda else {}    
         self.train_data = seq_mnist_train(trainer_params)
         self.val_data = seq_mnist_val(trainer_params) 
         self.train_loader = DataLoader(self.train_data, batch_size=trainer_params.batch_size, shuffle=True, **kwargs)
-        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, shuffle=True, **kwargs)
+        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, shuffle=False, **kwargs)
         self.starting_epoch = 1
         self.prev_loss = 10000
     

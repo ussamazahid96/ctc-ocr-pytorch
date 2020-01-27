@@ -35,8 +35,7 @@ import torch.nn as nn
 
 from functools import partial
 from quantization.modules.quantized_linear import QuantizedLinear
-from quantization.modules.rnn import QuantizedGRU, QuantizedLSTM
-from quantization.utils.rnn import pack_padded_sequence, pad_packed_sequence
+from quantization.modules.rnn import QuantizedLSTM
 
 class SequenceWise(nn.Module):
     def __init__(self, module):
@@ -128,18 +127,14 @@ class BiLSTM(nn.Module):
 
     @property
     def recurrent_layer_type(self):
-        if self.trainer_params.neuron_type == 'QGRU':
-            func = QuantizedGRU
-        elif self.trainer_params.neuron_type == 'QLSTM':
+        if self.trainer_params.neuron_type == 'QLSTM':
             func = QuantizedLSTM
         elif self.trainer_params.neuron_type == 'LSTM':
-            func = nn.LSTM
-        elif self.trainer_params.neuron_type == 'GRU':
             func = nn.LSTM
         else:
             raise Exception("Invalid neuron type.")
 
-        if self.trainer_params.neuron_type == 'QLSTM' or self.trainer_params.neuron_type == 'QGRU':
+        if self.trainer_params.neuron_type == 'QLSTM':
             func = partial(func, bias_bit_width=self.trainer_params.recurrent_bias_bit_width, 
                                  bias_q_type=self.trainer_params.recurrent_bias_quantization, 
                                  weight_bit_width=self.trainer_params.recurrent_weight_bit_width, 
