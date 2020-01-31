@@ -109,15 +109,6 @@ class BiLSTM(nn.Module):
 
         self.output_layer = nn.Sequential(SequenceWise(self.batch_norm_fc))
 
-        # self.output_layer = nn.Sequential(QuantizedLinear(
-        #               bias=True,
-        #               in_features=self.reduce_factor * self.trainer_params.num_units,
-        #               out_features=trainer_params.num_classes,
-        #               bias_bit_width=self.trainer_params.fc_bias_bit_width, 
-        #               bias_q_type=self.trainer_params.fc_bias_quantization, 
-        #               weight_bit_width=self.trainer_params.fc_weight_bit_width, 
-        #               weight_q_type=self.trainer_params.fc_weight_quantization))
-
     @property
     def reduce_factor(self):
         if self.trainer_params.bidirectional and self.trainer_params.reduce_bidirectional == 'CONCAT':
@@ -196,7 +187,7 @@ class BiLSTM(nn.Module):
                 f.write(define("HEIGHT_IN_PIX_TYPEWIDTH", int(math.ceil(math.log(self.trainer_params.input_size, 2.0)) + 2)))
                 f.write(define("NUMBER_OF_CLASSES", self.trainer_params.num_classes))
                 f.write(define("NUMBER_OF_CLASSES_TYPEWIDTH", 7+1))
-                f.write(define("MAX_NUMBER_COLUMNS_TEST_SET", self.trainer_params.seq_len*self.trainer_params.word_size))
+                f.write(define("MAX_NUMBER_COLUMNS_TEST_SET", 28*self.trainer_params.word_size))
                 f.write(define("MAX_NUMBER_COLUMNS_TEST_SET_TYPEWIDTH", 10+1))
                 f.write(define("SIZE_OF_OUTPUT_BUFFER", 96))
                 data_width = 64

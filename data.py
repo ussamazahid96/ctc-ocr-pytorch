@@ -13,7 +13,7 @@ class seq_mnist(Dataset):
         self.trainer_params = trainer_params
         self.images = []
         self.labels = []
-        self.input_lengths = np.ones(1, dtype=np.int32) * (self.trainer_params.seq_len * self.trainer_params.word_size)
+        self.input_lengths = np.ones(1, dtype=np.int32) * (28 * self.trainer_params.word_size)
         self.label_lengths = np.ones(1, dtype=np.int32) * (self.trainer_params.word_size) 
         self.input_quantization_scheme = ActivationQuantizationScheme(trainer_params.recurrent_activation_bit_width, 
             trainer_params.recurrent_activation_quantization)
@@ -23,20 +23,14 @@ class seq_mnist(Dataset):
         imgs = []
         labels = []
         for j in range(len(self.data)//self.trainer_params.word_size): # this loop builds dataset
-            img = np.zeros((self.trainer_params.input_size, self.trainer_params.word_size * self.trainer_params.seq_len))
+            img = np.zeros((self.trainer_params.input_size, self.trainer_params.word_size * 28))
             labs = np.zeros(self.trainer_params.word_size, dtype=np.int32)
-
             for i in range(self.trainer_params.word_size):  # this loop builds one example
                 ims, labs[i] = self.data[(j*self.trainer_params.word_size)+i]
                 labs[i] += 1 # because ctc assumes 0 as blank character
-                ims = np.reshape(ims, (self.trainer_params.input_size, self.trainer_params.seq_len))               
-                img[:, i*self.trainer_params.input_size : (i+1)*self.trainer_params.seq_len ] = ims
-            
-            # from PIL import Image
-            # from matplotlib import cm
-            # im = Image.fromarray(np.uint8(cm.gist_earth(img)*255))
-            # im.save('test{}.png'.format(j))
-            # exit(0)
+                ims = np.reshape(ims, (28,28))
+                ims = np.pad(ims, ((2,2),(0,0)), mode='constant', constant_values=-1) 
+                img[:, i*28 : (i+1)*28 ] = ims
             
             img = np.transpose(img)
             imgs.append(img)

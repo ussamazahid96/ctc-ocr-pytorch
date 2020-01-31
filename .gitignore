@@ -1,4 +1,7 @@
 data/
 results/
+experiments*
+test_image*
+r_model_fw_bw.hpp
 *.pyc
 __pycache__/

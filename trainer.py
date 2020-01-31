@@ -24,12 +24,13 @@ class Seq_MNIST_Trainer():
         torch.manual_seed(trainer_params.random_seed)
         if args.cuda:
                 torch.cuda.manual_seed_all(trainer_params.random_seed)
-
-        kwargs = {'num_workers': 4, 'pin_memory': False} if args.cuda else {}    
+        
         self.train_data = seq_mnist_train(trainer_params)
         self.val_data = seq_mnist_val(trainer_params) 
-        self.train_loader = DataLoader(self.train_data, batch_size=trainer_params.batch_size, shuffle=True, **kwargs)
-        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, shuffle=False, **kwargs)
+        
+        self.train_loader = DataLoader(self.train_data, batch_size=trainer_params.batch_size, shuffle=True, num_workers=1)
+        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, shuffle=False, num_workers=1)
+        
         self.starting_epoch = 1
         self.prev_loss = 10000
     
@@ -37,19 +38,17 @@ class Seq_MNIST_Trainer():
         self.criterion = wp.CTCLoss(size_average=True)
         self.labels = [i for i in range(trainer_params.num_classes-1)]
         self.decoder = seq_mnist_decoder(labels=self.labels)
-
-        if args.resume or args.eval or args.export:
-            print("Loading model from {}".format(args.save_path))
-            package = torch.load(args.save_path, map_location=lambda storage, loc: storage)
-            self.model.load_state_dict(package['state_dict'])
+        self.optimizer = optim.Adam(self.model.parameters(), lr=trainer_params.lr)
 
         if args.cuda:
             torch.cuda.set_device(args.gpus)
             self.model = self.model.cuda()
+            self.criterion = self.criterion.cuda()
 
-        self.optimizer = optim.Adam(self.model.parameters(), lr=trainer_params.lr)
-
-        if args.resume:
+        if args.resume or args.eval or args.export:
+            print("Loading model from {}".format(args.resume))
+            package = torch.load(args.resume, map_location=lambda storage, loc: storage)
+            self.model.load_state_dict(package['state_dict'])
             self.optimizer.load_state_dict(package['optim_dict']) 
             self.starting_epoch = package['starting_epoch']
             self.prev_loss = package['prev_loss']
@@ -75,11 +74,11 @@ class Seq_MNIST_Trainer():
         }
         return package
 
-    def save_model(self, epoch, loss_value):
-        print("Model saved at: {}\n".format(self.args.save_path))
-        self.prev_loss = loss_value
+    def save_model(self, epoch, name):
+        path = self.args.experiments + '/' + name
+        print("Model saved at: {}\n".format(path))
         torch.save(self.serialize(model=self.model, trainer_params=self.trainer_params, 
-            optimizer=self.optimizer, starting_epoch=epoch + 1, prev_loss=self.prev_loss), self.args.save_path)
+            optimizer=self.optimizer, starting_epoch=epoch + 1, prev_loss=self.prev_loss), path)
 
 
     def train(self, epoch):
@@ -94,15 +93,8 @@ class Seq_MNIST_Trainer():
             
             if self.args.cuda:
                 data = data.cuda()
- 
-            output = self.model(data)
 
-            # print("Input = ", data.shape)
-            # print("model output (x) = ", output)
-            # print("GTs (y) = ", labels.type())
-            # print("model output len (xs) = ", output_len.type())
-            # print("GTs len (ys) = ", lab_len.type())
-            # exit(0)
+            output = self.model(data)
 
             loss = self.criterion(output, labels, output_len, lab_len)
             loss_value = loss.data[0]
@@ -131,13 +123,6 @@ class Seq_MNIST_Trainer():
 
             output = self.model(data)
             
-            # print("Input = ", data)
-            # print("model output (x) = ", output.shape)
-            # print("model output (x) = ", output)        
-            # print("Label = ", labels)
-            # print("model output len (xs) = ", output_len)
-            # print("GTs len (ys) = ", lab_len)
-            
             index = random.randint(0,self.trainer_params.test_batch_size-1)      
             label = labels[index*self.trainer_params.word_size:(index+1)*self.trainer_params.word_size].data.numpy()
             label = label-1
@@ -152,14 +137,16 @@ class Seq_MNIST_Trainer():
             loss_value += loss.data.numpy()
 
         loss_value /= (len(self.val_data)//self.trainer_params.test_batch_size)
+        loss_value = loss_value[0]
         print("Average Loss Value for Val Data is = {:.4f}\n".format(float(loss_value)))
-        
         if loss_value < self.prev_loss and save_model_flag:
-            self.save_model(epoch, loss_value)
+            self.prev_loss = loss_value
+            self.save_model(epoch, "best.tar")
+        elif save_model_flag:
+            self.save_model(epoch, "checkpoint.tar")
 
     def eval_model(self):
         self.test()
-
 
     def train_model(self):
         for epoch in range(self.starting_epoch, self.trainer_params.epochs + 1):
@@ -172,22 +159,36 @@ class Seq_MNIST_Trainer():
         self.model.eval()
         self.model.export('r_model_fw_bw.hpp', simd_factor, pe)
 
-    def export_image(self, idx=100):
+    def export_image(self, idx=0):
         img, label = self.val_data.images[:,idx,:], self.val_data.labels[0][idx]
+        
+        inp = torch.from_numpy(img)
+        inp = inp.unsqueeze(1)
+        inp = Variable(inp, requires_grad=False)        
+        
+        out = self.model(inp)
+
+        out = self.decoder.decode(out, self.val_data.input_lengths, self.val_data.label_lengths)
+        out = self.decoder.to_string(out)
+        
         img = img.transpose(1, 0)
         label -= 1
         label = self.decoder.to_string(label)
         
-        from PIL import Image
+        from PIL import Image, ImageOps
         from matplotlib import cm
-
-        im = Image.fromarray(np.uint8(cm.gist_earth(img)*255))
+        img1 = (img+1)/2.
+        im = Image.fromarray(np.uint8(cm.gist_earth(img1)*255)).convert('L')
+        im = ImageOps.invert(im)
         im.save('test_image.png')
+        
         img = img.transpose(1, 0)
-
         img = np.reshape(img, (-1, 1))
         np.savetxt("test_image.txt", img, fmt='%.10f')
+
         f = open('test_image_gt.txt','w')
         f.write(label)
         f.close()
-        print("Exported image with label = {}".format(label))
+        
+        print("Prediction on the image = {}".format(out))
+        print("Label of exported image = {}".format(label))

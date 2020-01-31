@@ -1,13 +1,11 @@
 import os
-import argparse
-import torch
 import json
+import torch
+import argparse
 from trainer import Seq_MNIST_Trainer
-
 
 torch.backends.cudnn.enabled = False
 torch.set_printoptions(precision=10)
-
 
 class objdict(dict):
     def __getattr__(self, name):
@@ -29,18 +27,24 @@ def ascii_encode_dict(data):
     ascii_encode = lambda x: x.encode('ascii')
     return dict(map(ascii_encode, pair) if isinstance(pair[1], unicode) else pair for pair in data.items())
 
+
+def non_or_str(value):
+    if value == None:
+        return None
+    return value
+
 if __name__ == '__main__':
     # Training settings
     parser = argparse.ArgumentParser(description='PyTorch Quantized BiLSTM Sequential MNIST Example')
-    parser.add_argument('--params', '-p', default="default_trainer_params.json", help='Path to params JSON file. Default ignored when resuming.')
+    parser.add_argument('--params', '-p', type=str, default="default_trainer_params.json", help='Path to params JSON file. Default ignored when resuming.')
     parser.add_argument('--no-cuda', action='store_true', default=False, help='disables CUDA training')
     parser.add_argument('--gpus', default=0, help='gpus used for training - e.g 0,1,3')
     parser.add_argument('--init_bn_fc_fusion', default=False, action='store_true', help='Init BN FC fusion.')
-    parser.add_argument('--resume', default=False, action='store_true', help='Perform only evaluation on val dataset.')
+    parser.add_argument('--resume', type=non_or_str, help='resume from a checkpoint')
     parser.add_argument('--eval', default=False, action='store_true', help='perform evaluation of trained model')
-    parser.add_argument('--export', default=False, action='store_true', help='perform weights export as npz of trained model')
+    parser.add_argument('--export', default=False, action='store_true', help='perform weights export as .hpp of trained model')
     parser.add_argument('--export_image', default=False, action='store_true', help='perform test image export as png and txt')
-    parser.add_argument('--save_path', default="results/model.tar", help='Save Path')
+    parser.add_argument('--experiments', default="./experiments", help='Save Path')
     parser.add_argument('--simd_factor', default=1, type=int, help='SIMD factor for export.')
     parser.add_argument('--pe', default=1, type=int, help='Number of PEs for export.')
     
@@ -80,16 +84,19 @@ if __name__ == '__main__':
         args.no_cuda = True
     args.cuda = not args.no_cuda and torch.cuda.is_available()
 
-    if not os.path.exists("results/"):
-        os.mkdir("results/")
+    if not os.path.exists(args.experiments):
+        os.mkdir(args.experiments)
 
     if (args.resume or args.eval or args.export) and args.params == "default_trainer_params.json":
-        package = torch.load(args.save_path, map_location=lambda storage, loc: storage)
+        package = torch.load(args.resume, map_location=lambda storage, loc: storage)
         trainer_params = package['trainer_params']
     else:
         with open(args.params) as d:
             trainer_params = json.load(d, object_hook=ascii_encode_dict)
     trainer_params = objdict(trainer_params)
+
+    for k in trainer_params.keys():
+        print(k, trainer_params[k])
 
     trainer = Seq_MNIST_Trainer(trainer_params, args)
 
