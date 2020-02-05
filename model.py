@@ -201,21 +201,32 @@ class BiLSTM(nn.Module):
                 f.write(define("FCBIASWIDTH", self.trainer_params.fc_bias_bit_width))
                 f.write(define("OUTPUTACTIVATIONHIDDENLAYERWIDTH", self.trainer_params.recurrent_activation_bit_width))
                 f.write(define("OUTPUTACTIVATIONOUTPUTLAYERWIDTH", 16))
-                    
+                
+                # write lstm weight decl
                 for decl in lstm_weight_decl_list:
                     f.write(decl + '\n')
+                
+                # write lstm bias decl
                 if self.trainer_params.recurrent_bias_enabled:
                     for decl in lstm_bias_decl_list:
                         f.write(decl + '\n')
+               
+                # write fc weight and bias decl
                 f.write(fc_weight_decl + '\n')
                 f.write(fc_bias_decl + '\n')
                 
-                f.write(fc_weight_string + '\n')
+                # write lstm weights
                 for string in lstm_weight_string_list:
                     f.write(string + '\n')
-                f.write(fc_bias_string + '\n')
+                
+                # write lstm bias
                 if self.trainer_params.recurrent_bias_enabled:
                     for string in lstm_bias_string_list:
                         f.write(string + '\n')
+
+                # write fc weights and bias
+                f.write(fc_weight_string + '\n') 
+                f.write(fc_bias_string + '\n')
+                
         else:
             raise Exception("Export not supported for {}".format(self.trainer_params.neuron_type))
