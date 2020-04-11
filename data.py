@@ -3,21 +3,20 @@ import numpy as np
 from torch.autograd import Variable
 from torchvision import datasets, transforms
 from torch.utils.data import Dataset, DataLoader
-from quantization.function.quantization_scheme import ActivationQuantizationScheme
 
 
 class seq_mnist(Dataset):
     """docstring for seq_mnist_dataset"""
     def __init__(self, trainer_params, train_set):
+        self.suffix = "_train" if train_set else "_test"
         self.data = datasets.MNIST('data', train=train_set, download=True, transform=transforms.Compose([transforms.ToTensor(), transforms.Normalize((0.5,), (0.5,))]))
         self.trainer_params = trainer_params
         self.images = []
         self.labels = []
         self.input_lengths = np.ones(1, dtype=np.int32) * (28 * self.trainer_params.word_size)
         self.label_lengths = np.ones(1, dtype=np.int32) * (self.trainer_params.word_size) 
-        self.input_quantization_scheme = ActivationQuantizationScheme(trainer_params.recurrent_activation_bit_width, 
-            trainer_params.recurrent_activation_quantization)
-        self.build_dataset()  
+        self.build_dataset()
+        # self.load_dataset()  
 
     def build_dataset(self):
         imgs = []
@@ -37,17 +36,31 @@ class seq_mnist(Dataset):
             labels.append(labs)
 
         self.images = np.asarray(imgs, dtype=np.float32).transpose(1, 0, 2)
+        self.labels.append(labels)
+
+        # np.save('data/images{}.npy'.format(self.suffix), self.images)
+        # np.save('data/labels{}.npy'.format(self.suffix), np.asarray(self.labels))
         
         if self.trainer_params.quantize_input:
             self.images = self.quantize_tensor_image(self.images)
             self.images = np.asarray(self.images)
-        
-        self.labels.append(labels)
+
+    def load_dataset(self):
+        self.images = np.load('data/images{}.npy'.format(self.suffix))
+        self.labels = np.load('data/labels{}.npy'.format(self.suffix))
+        if self.trainer_params.quantize_input:
+            self.images = self.quantize_tensor_image(self.images)
+            self.images = np.asarray(self.images)
+
 
     def quantize_tensor_image(self, tensor_image):
-        tensor_image = Variable(torch.from_numpy(tensor_image), requires_grad=False)
-        out = self.input_quantization_scheme.q_forward(tensor_image)
-        return out.data
+        frac_bits = self.trainer_params.recurrent_activation_bit_width-1
+        prescale = 2**frac_bits
+        postscale = 2**-frac_bits
+        max_val = 1 - postscale
+        tensor_image = tensor_image.clip(-1, max_val)
+        tensor_image = np.round(tensor_image*prescale)*postscale
+        return tensor_image
 
     def __len__(self):
         return self.images.shape[1]

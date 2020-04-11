@@ -28,14 +28,17 @@ class Seq_MNIST_Trainer():
         self.train_data = seq_mnist_train(trainer_params)
         self.val_data = seq_mnist_val(trainer_params) 
         
-        self.train_loader = DataLoader(self.train_data, batch_size=trainer_params.batch_size, shuffle=True, num_workers=1)
-        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, shuffle=False, num_workers=1)
+        self.train_loader = DataLoader(self.train_data, batch_size=trainer_params.batch_size, \
+                                        shuffle=True, num_workers=trainer_params.num_workers)
         
+        self.val_loader = DataLoader(self.val_data, batch_size=trainer_params.test_batch_size, \
+                                        shuffle=False, num_workers=trainer_params.num_workers)        
+
         self.starting_epoch = 1
         self.prev_loss = 10000
     
         self.model = BiLSTM(trainer_params) 
-        self.criterion = wp.CTCLoss(size_average=True)
+        self.criterion = wp.CTCLoss(size_average=False)
         self.labels = [i for i in range(trainer_params.num_classes-1)]
         self.decoder = seq_mnist_decoder(labels=self.labels)
         self.optimizer = optim.Adam(self.model.parameters(), lr=trainer_params.lr)
@@ -99,7 +102,7 @@ class Seq_MNIST_Trainer():
             loss = self.criterion(output, labels, output_len, lab_len)
             loss_value = loss.data[0]
             print("Loss value for epoch = {}/{} and batch {}/{} is = {:.4f}".format(epoch, 
-                self.trainer_params.epochs, (i+1)*self.trainer_params.batch_size, len(self.train_data) , loss_value))
+                self.args.epochs, (i+1)*self.trainer_params.batch_size, len(self.train_data) , loss_value))
             
             self.optimizer.zero_grad()
             loss.backward()
@@ -149,7 +152,7 @@ class Seq_MNIST_Trainer():
         self.test()
 
     def train_model(self):
-        for epoch in range(self.starting_epoch, self.trainer_params.epochs + 1):
+        for epoch in range(self.starting_epoch, self.args.epochs + 1):
             self.train(epoch)
             self.test(epoch=epoch, save_model_flag=True)
             if epoch%20==0:
@@ -159,7 +162,10 @@ class Seq_MNIST_Trainer():
         self.model.eval()
         self.model.export('r_model_fw_bw.hpp', simd_factor, pe)
 
-    def export_image(self, idx=0):
+    def export_image(self):
+        random.seed()
+        idx = random.randint(0,self.val_data.images.shape[1]-1)
+        # idx = 100
         img, label = self.val_data.images[:,idx,:], self.val_data.labels[0][idx]
         
         inp = torch.from_numpy(img)
@@ -174,6 +180,7 @@ class Seq_MNIST_Trainer():
         img = img.transpose(1, 0)
         label -= 1
         label = self.decoder.to_string(label)
+        assert label==out
         
         from PIL import Image, ImageOps
         from matplotlib import cm

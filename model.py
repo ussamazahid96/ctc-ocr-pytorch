@@ -34,8 +34,9 @@ import torch
 import torch.nn as nn
 
 from functools import partial
-from quantization.modules.quantized_linear import QuantizedLinear
+
 from quantization.modules.rnn import QuantizedLSTM
+from quantization.modules.quantized_linear import QuantizedLinear
 
 class SequenceWise(nn.Module):
     def __init__(self, module):
@@ -107,7 +108,7 @@ class BiLSTM(nn.Module):
                       weight_q_type=self.trainer_params.fc_weight_quantization)
         )
 
-        self.output_layer = nn.Sequential(SequenceWise(self.batch_norm_fc))
+        self.output_layer = nn.Sequential(SequenceWise(self.batch_norm_fc), nn.LogSoftmax(dim=2))
 
     @property
     def reduce_factor(self):
@@ -190,6 +191,7 @@ class BiLSTM(nn.Module):
                 f.write(define("MAX_NUMBER_COLUMNS_TEST_SET", 28*self.trainer_params.word_size))
                 f.write(define("MAX_NUMBER_COLUMNS_TEST_SET_TYPEWIDTH", 10+1))
                 f.write(define("SIZE_OF_OUTPUT_BUFFER", 96))
+                f.write(define("DIRECTIONS", 2 if self.trainer_params.bidirectional else 1))
                 data_width = 64
                 input_bit_width = self.trainer_params.recurrent_activation_bit_width if self.trainer_params.quantize_input else 8
                 f.write(define("PACKEDWIDTH", int(data_width * input_bit_width / 2)))
