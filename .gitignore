@@ -4,5 +4,4 @@ experiments*
 test_image*
 r_model_fw_bw.hpp
 *.pyc
-brevitas/*.pyc
 __pycache__/
